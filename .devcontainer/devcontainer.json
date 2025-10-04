@@ -21,11 +21,15 @@
             ]
         }
     },
+    "mounts": [
+        "source=${localEnv:HOME}/.ssh,target=/home/root/.ssh,type=bind,readonly,consistency=cached"
+    ],
     "forwardPorts": [
         8000,
         5173,
         3000
     ],
+    "remoteUser": "root",
     "remoteUser": "root",
     "updateRemoteUserUID": true,
     "runArgs": [

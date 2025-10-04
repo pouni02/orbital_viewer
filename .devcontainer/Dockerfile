@@ -5,7 +5,7 @@ FROM mcr.microsoft.com/devcontainers/python:3.11
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs
 
-# Ensure .ssh directory exists for vscode user
+# Ensure .ssh directory exists for root user
 RUN mkdir -p /home/root/.ssh && \
     chown root:root /home/root/.ssh && \
     chmod 700 /home/root/.ssh
