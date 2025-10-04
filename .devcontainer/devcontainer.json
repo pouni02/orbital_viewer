@@ -17,15 +17,14 @@
                 "eamodio.gitlens",
                 "GitHub.copilot",
                 "GitHub.copilot-chat",
+                "PKief.material-icon-theme"
             ]
         }
     },
-    "mounts": [
-        "source=${localEnv:HOME}/.ssh,target=/home/root/.ssh,type=bind,readonly,consistency=cached"
-    ],
     "forwardPorts": [
         8000,
-        5173
+        5173,
+        3000
     ],
     "remoteUser": "root",
     "updateRemoteUserUID": true,

@@ -17,10 +17,5 @@ WORKDIR /workspace
 COPY backend/requirements.txt /workspace/backend/requirements.txt
 RUN pip install --upgrade pip && pip install -r /workspace/backend/requirements.txt
 
-# Install Node.js dependencies
-COPY frontend/package.json frontend/package-lock.json* /workspace/frontend/
-WORKDIR /workspace/frontend
-RUN npm install
-
 # Return to the workspace root
 WORKDIR /workspace
