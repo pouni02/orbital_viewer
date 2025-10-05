@@ -1,17 +1,17 @@
-
 import { useState } from "react";
 import OrbitVisualizer from "./components/OrbitVisualizer";
-import ErrorBoundary from './components/ErrorBoundary';
-import VerticalMenu from './components/VerticalMenu';
+import ErrorBoundary from "./components/ErrorBoundary";
+import VerticalMenu from "./components/VerticalMenu";
 import { fetchOrbit } from "./services/api";
 
-import './css/App.css';
+import "./css/App.css";
+import AsteroidImpact from "./components/AsteroidImpact";
 
 function App() {
   const [trajectory, setTrajectory] = useState(null);
   const [reset, setReset] = useState(false);
   const [transition, setTransition] = useState(true);
-  const [indexTransition, setIndexTransition] = useState(0);
+  const [_indexTransition, setIndexTransition] = useState(0);
 
   const loadOrbit = async () => {
     const data = await fetchOrbit({
@@ -21,23 +21,33 @@ function App() {
       raan: 45,
       argp: 30,
       M0: 0,
-      epoch: "2025-10-01T00:00:00"
+      epoch: "2025-10-01T00:00:00",
     });
-    console.log({data})
-    setReset(!reset)
+    console.log({ data });
+    setReset(!reset);
     setTrajectory(data.trajectory);
   };
 
   return (
     <div id="root">
       {/* Left vertical menu */}
-      <VerticalMenu loadOrbit={loadOrbit} handleTransition={setTransition} transition={transition} handleIndexTransition={setIndexTransition}/> 
+      <VerticalMenu
+        loadOrbit={loadOrbit}
+        handleTransition={setTransition}
+        transition={transition}
+        handleIndexTransition={setIndexTransition}
+      />
 
       {/* Main content area */}
       <div className="main-content">
         {trajectory ? (
           <ErrorBoundary>
-            <OrbitVisualizer reset={reset} trajectory={trajectory} transition={transition} indexTransition={indexTransition} handleIndexTransition={setIndexTransition} />
+            {transition ? <div
+              style={{ position: "relative", width: "100%", height: "100%" }}
+            >
+              <AsteroidImpact />
+            </div> : 
+            <OrbitVisualizer reset={reset} trajectory={trajectory} transition={transition} indexTransition={_indexTransition} handleIndexTransition={setIndexTransition} />}
           </ErrorBoundary>
         ) : (
           <div className="placeholder-message">

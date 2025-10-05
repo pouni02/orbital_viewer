@@ -4,12 +4,19 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import IMPACT from "../../impact asteroides/impact-data.json";
 import PLANETS_POINTS from "../../planets/Planet_heliocentric_position_velocity.json";
 
-export default function OrbitVisualizer({ trajectory, transition, reset, indexTransition }) {
-  const [prevIndexTransition, setPrevIndexTransition] = useState(indexTransition);
+export default function OrbitVisualizer({
+  trajectory,
+  reset,
+  indexTransition,
+}) {
+  const [prevIndexTransition, setPrevIndexTransition] =
+    useState(indexTransition);
   const mountRef = useRef(null);
-  const impactTimelinePoints = IMPACT.map((imp) =>
-    imp?.timeline?.slice(0, 732)?.map((el) => el.heliocentric?.r_au)
-  );
+  // Refs to keep planet meshes and their sample points accessible outside the main effect
+  const planetsRef = useRef([]);
+  const planetsPointsRef = useRef([]);
+  const transitionRef = useRef({ rafId: null, start: 0, duration: 600 });
+  // impact data currently unused in visualization; keep import for future use
   const planetsPoints = PLANETS_POINTS?.bodies;
   useEffect(() => {
     if (!trajectory || trajectory.length === 0 || !mountRef.current) return;
@@ -107,7 +114,7 @@ export default function OrbitVisualizer({ trajectory, transition, reset, indexTr
     const planets = planetsPoints?.map(
       (pp, idx) =>
         new THREE.Mesh(
-          new THREE.SphereGeometry(0.05 * idx, 16, 16),
+          new THREE.SphereGeometry(0.05 * (idx + 1), 16, 16),
           new THREE.MeshPhongMaterial({
             color: planetColors[idx % planetColors.length],
           })
@@ -115,12 +122,15 @@ export default function OrbitVisualizer({ trajectory, transition, reset, indexTr
     );
     planets?.forEach((planet, idx) => {
       scene.add(planet);
-      planet?.position?.set(
-        planetsTJ[idx][0].x,
-        planetsTJ[idx][0].y,
-        planetsTJ[idx][0].z
-      );
+      const initial = planetsTJ?.[idx]?.[0];
+      if (initial) {
+        planet.position.set(initial.x, initial.y, initial.z);
+      }
     });
+
+    // Save references so we can update positions from other effects
+    planetsRef.current = planets || [];
+    planetsPointsRef.current = planetsTJ || [];
 
     // Sun mesh
     const sun = new THREE.Mesh(
@@ -135,7 +145,6 @@ export default function OrbitVisualizer({ trajectory, transition, reset, indexTr
     scene.add(light);
 
     // Animate asteroid along trajectory
-    let i = 0;
     const animate = () => {
       requestAnimationFrame(animate);
       // asteroid.position.copy(points[i % points.length]);
@@ -145,27 +154,7 @@ export default function OrbitVisualizer({ trajectory, transition, reset, indexTr
     };
     animate();
 
-    
-
-    // function moveToIndex(index) {
-    //   if (indexTransition < prevIndexTransition) {
-    //     console.log("Backward");
-    //     let i = 0;
-    //     planetsTJ[0]?.planetPoints?.
-    //     planetsTJ?.forEach((planetPoints, index) => {
-    //       planets[index].position.copy(planetPoints[i % points.length]);
-    //       console.log({ planetPoints, index, indexTransition, prevIndexTransition });
-          
-    //     });
-    //   }else{
-    //     console.log("Forward");
-    //   };
-
-    // }
-    // if(indexTransition != prevIndexTransition){
-    //   moveToIndex(indexTransition);
-    //   setPrevIndexTransition(indexTransition);
-    // }
+    // function moveToIndex(index) { ... } commented out - we use the dedicated effect below
 
     // Handle resize
     const handleResize = () => {
@@ -181,13 +170,119 @@ export default function OrbitVisualizer({ trajectory, transition, reset, indexTr
     window.addEventListener("resize", handleResize);
 
     // Cleanup on unmount
+    const mountNode = mountRef.current;
     return () => {
       window.removeEventListener("resize", handleResize);
-      if (mountRef.current) {
-        mountRef.current.removeChild(renderer.domElement);
+      if (mountNode && mountNode.contains(renderer.domElement)) {
+        mountNode.removeChild(renderer.domElement);
       }
     };
-  }, [trajectory, reset, indexTransition]);
+  }, [trajectory, reset, planetsPoints]);
+
+  // Effect: when indexTransition changes, update planet positions
+  useEffect(() => {
+    const planetsPoints = PLANETS_POINTS?.bodies?.map(elm => elm?.samples?.map(p => new THREE.Vector3(p.r[0], p.r[1], p.r[2])));
+    console.log({pP : planetsPoints})
+    const idx = indexTransition;
+    if (
+      typeof idx !== "number" ||
+      !planetsRef.current ||
+      planetsRef.current.length === 0 ||
+      !planetsPointsRef.current ||
+      planetsPointsRef.current.length === 0
+    )
+      return;
+
+    // Cancel any running transition
+    if (transitionRef.current.rafId) {
+      cancelAnimationFrame(transitionRef.current.rafId);
+      transitionRef.current.rafId = null;
+    }
+
+    const fromPositions = planetsRef.current.map((planet) =>
+      planet ? planet.position.clone() : null
+    );
+
+    const toPositions = planetsRef.current.map((planet, pIdx) => {
+      const samples = planetsPointsRef.current[pIdx];
+      if (!samples) return null;
+      const clampedIndex = Math.max(0, Math.min(samples.length - 1, idx));
+      const pos = samples[clampedIndex];
+      return pos ? new THREE.Vector3(pos.x, pos.y, pos.z) : null;
+    });
+
+    // console.log({ toPositions, fromPositions, map: planetsPointsRef.current });
+
+    const duration = transitionRef.current.duration || 600; // ms
+    const start = performance.now();
+
+    const step = (now) => {
+      if (prevIndexTransition == idx) return ;
+      const elapsed = now - start;
+      const t = Math.min(1, Math.max(0, elapsed / duration));
+      if (prevIndexTransition > idx) {
+        const mapPoint = planetsPoints?.map( elm => elm?.slice(idx, prevIndexTransition).reverse());
+        mapPoint[0].map((xyz, i) => {
+          
+          planetsRef.current[0].position.lerpVectors(fromPositions[0], xyz, t);
+          planetsRef.current[1].position.lerpVectors(fromPositions[1], xyz, t);
+          planetsRef.current[2].position.lerpVectors(fromPositions[2], xyz, t);
+          planetsRef.current[3].position.lerpVectors(fromPositions[3], xyz, t);
+          planetsRef.current[4].position.lerpVectors(fromPositions[4], xyz, t);
+          planetsRef.current[5].position.lerpVectors(fromPositions[5], xyz, t);
+          planetsRef.current[6].position.lerpVectors(fromPositions[6], xyz, t);
+          planetsRef.current[7].position.lerpVectors(fromPositions[7], xyz, t);
+
+        })
+        console.log({ mapPoint, idx, prevIndexTransition, diff : prevIndexTransition - idx });
+        // planetsRef.current.forEach((planet, pIdx) => {
+        //   const from = fromPositions[pIdx];
+        //   const to = toPositions[pIdx];
+        //   if (planet && from && to) {
+        //     // lerpVectors modifies the target vector, so set directly on planet.position
+        //     planet.position.lerpVectors(from, to, t);
+        //   }
+        // });
+      } else {
+        const mapPoint = planetsPoints?.map( elm => elm?.slice(prevIndexTransition, idx));
+        // console.log({ mapPoint, idx, prevIndexTransition, diff : prevIndexTransition - idx });
+        console.log("{ mapPoint, idx, prevIndexTransition, diff : prevIndexTransition - idx }");
+        mapPoint[0].map((xyz, i) => {
+          
+          planetsRef.current[0].position.lerpVectors(fromPositions[0], xyz, t);
+          planetsRef.current[1].position.lerpVectors(fromPositions[1], xyz, t);
+          planetsRef.current[2].position.lerpVectors(fromPositions[2], xyz, t);
+          planetsRef.current[3].position.lerpVectors(fromPositions[3], xyz, t);
+          planetsRef.current[4].position.lerpVectors(fromPositions[4], xyz, t);
+          planetsRef.current[5].position.lerpVectors(fromPositions[5], xyz, t);
+          planetsRef.current[6].position.lerpVectors(fromPositions[6], xyz, t);
+          planetsRef.current[7].position.lerpVectors(fromPositions[7], xyz, t);
+
+        })
+      }
+
+      if (t < 1) {
+        transitionRef.current.rafId = requestAnimationFrame(step);
+      } else {
+        transitionRef.current.rafId = null;
+      }
+    };
+
+    transitionRef.current.rafId = requestAnimationFrame(step);
+    setPrevIndexTransition(idx);
+  }, [indexTransition, prevIndexTransition]);
+
+  // cleanup transition RAF on unmount
+  useEffect(() => {
+    const trCurrent = transitionRef.current;
+    return () => {
+      const rafId = trCurrent ? trCurrent.rafId : null;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      if (trCurrent) trCurrent.rafId = null;
+    };
+  }, []);
 
   return (
     <div
